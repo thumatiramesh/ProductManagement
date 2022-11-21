@@ -3,6 +3,7 @@ import { Product } from './product';
 import { ProductService } from './productservice';
 import { ConfirmationService } from 'primeng/api';
 import { MessageService } from 'primeng/api';
+import { map } from 'rxjs';
 
 @Component({
   selector: 'app-root',
@@ -31,8 +32,23 @@ export class AppComponent {
     constructor(private productService: ProductService, private messageService: MessageService, private confirmationService: ConfirmationService) { }
 
     ngOnInit() {
-        this.productService.getProducts().then(data => this.products = data);
+        // this.productService.getProducts().then(data => this.products = data);
+
+        this.productService.getProducts().pipe(
+            map(res => res.map(item => ({
+                id: item.id, 
+              name: item.name,
+              price: item.price,
+              category: item.category,
+              rating: item.rating,
+              inventoryStatus: item.inventoryStatus,
+            })))
+        ).subscribe(res => {
+          console.log("data "+ res);
+          this.products = res;
+        });
     }
+
 
     openNew() {
         this.product = {};
@@ -64,9 +80,17 @@ export class AppComponent {
             header: 'Confirm',
             icon: 'pi pi-exclamation-triangle',
             accept: () => {
-                this.products = this.products.filter(val => val.id !== product.id);
+                // this.products = this.products.filter(val => val.id !== product.id);
                 this.product = {};
-                this.messageService.add({severity:'success', summary: 'Successful', detail: 'Product Deleted', life: 3000});
+
+                this.productService
+                .deleteProduct(product)
+                .subscribe(response => {
+                    this.messageService.add({severity:'success', summary: 'Successful', detail: 'Product Deleted', life: 3000});
+                    window.location.reload();
+                },(error) => {
+                  alert(error.error.message);
+                }); 
             }
         });
     }
@@ -81,17 +105,29 @@ export class AppComponent {
 
         if (this.product?.name?.trim()) {
             if (this.product.id) {
-                this.products[this.findIndexById(this.product.id)] = this.product;                
-                this.messageService.add({severity:'success', summary: 'Successful', detail: 'Product Updated', life: 3000});
+                // this.products[this.findIndexById(this.product.id)] = this.product;    
+                this.productService
+                .updateProduct(this.product)
+                .subscribe(response => {
+                    this.messageService.add({severity:'success', summary: 'Successful', detail: 'Product Updated', life: 3000});
+                    window.location.reload();
+                },(error) => {
+                  alert(error.error.message);
+                });           
+                
             }
             else {
                 this.product.id = this.createId();
-                this.product.image = 'product-placeholder.svg';
                 this.product.inventoryStatus = "INSTOCK";
                 this.product.rating = 5;
+
+                this.productService.addNewProduct(this.product).subscribe(data => {
+                    this.messageService.add({severity:'success', summary: 'Successful', detail: 'Product Created', life: 3000});
+                    window.location.reload();
+                  }, (error) => {
+                    alert(error.error.message);
+                  });
                 this.products.push(this.product);
-                
-                this.messageService.add({severity:'success', summary: 'Successful', detail: 'Product Created', life: 3000});
             }
 
             this.products = [...this.products];
